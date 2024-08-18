@@ -1,24 +1,31 @@
-FROM python:3.10-slim
+FROM python:3.10-alpine AS builder
 
-# Set the working directory
 WORKDIR /app
 
-# Install system dependencies and Python packages
-RUN apt-get update && \
-    apt-get install -y --no-install-recommends \
-    ffmpeg \
-    && apt-get clean \
-    && rm -rf /var/lib/apt/lists/* \
-    && pip install --no-cache-dir streamlink requests
+# Install build dependencies
+RUN apk add --no-cache \
+        gcc \
+        musl-dev \
+        libffi-dev
 
-# Copy the script and config files into the container
+RUN pip install --no-cache-dir streamlink requests
+
+# Stage 2: Final runtime stage
+FROM python:3.10-alpine
+
+WORKDIR /app
+
+# Copy installed Python packages from the builder stage
+COPY --from=builder /usr/local /usr/local
+
 COPY twitch-recorder.py .streamlinkrc config.py /app/
 
-# Set environment variables (can be overridden at runtime)
+RUN apk add --no-cache ffmpeg
+
+# Set environment variables
 ENV username=
 ENV client_id=
 ENV client_secret=
 ENV twitch_oauth_token=
 
-# Run the script
 ENTRYPOINT ["python", "twitch-recorder.py"]
