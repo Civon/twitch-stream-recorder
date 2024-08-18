@@ -1,5 +1,7 @@
+retry-streams=15
+retry-max=60
 stream-timeout=60
-stream-segment-threads=1
+stream-segment-threads=3
 stream-segment-attempts=5
 stream-segment-timeout=10
 http-timeout=20
