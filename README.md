@@ -1,7 +1,34 @@
-# Ancalentari Twitch Stream Recorder
+# Twitch Stream Recorder
 
-This script allows you to record twitch streams live to .mp4 files.  
-It is an improved version of [junian's twitch-recorder](https://gist.github.com/junian/b41dd8e544bf0e3980c971b0d015f5f6), migrated to [**helix**](https://dev.twitch.tv/docs/api) - the new twitch API. It uses OAuth2.
+This script allows you to record twitch streams live to .mp4 files.
+
+## Prerequisite
+
+- `client_id` - you can grab this from [here](https://dev.twitch.tv/console/apps) once you register your application
+- `client_secret` - you generate this [here](https://dev.twitch.tv/console/apps) as well, for your registered application
+- (Optional)`twitch_oauth_token` - personal OAuth token from Twitch. Check [this section](#how-to-get-twitch-oauth-token) for details.
+
+## Run on Docker
+
+### Docker Compose
+
+1. Clone the repo.
+1. Simply copy .env.example to .env file
+1. run `Docker compose up`
+
+#### Single container
+
+Create .env file from .env.example and run
+
+```
+podman run --name twitch-stream-recorder \
+    -v your-vod-warehouse:/app/rec:Z \
+    --env-file .env
+    ghcr.io/civon/twitch-stream-recorder \
+    --username myFavStreamer # You can override env by args \
+    -q worst \
+    --log warn
+```
 
 ## Requirements
 
@@ -108,26 +135,6 @@ And now you can just kill the job:
 kill %1
 ```
 
-### On Docker
-
-#### Docker Compose (recommand)
-
-Simply copy .env.example to .env file and run `Docker compose up`
-
-#### Single container
-
-Note: single container is not out-of-box, need to access config.py to modify client_id and client_secret.
-
-Replace cmd `python3.8 twitch-recorder.py` with
-
-```
-docker run ghcr.io/civon/twitch-stream-recorder --name twitch-stream-recorder \
-    -v your-vod-warehouse:/app/rec \
-    --username myFavStreamer \
-    -q worst \
-    --log warn
-```
-
 ### On Windows
 
 You can run the scipt from `cmd` or [terminal](https://www.microsoft.com/en-us/p/windows-terminal/9n0dx20hk701?activetab=pivot:overviewtab), by simply going to the directory where the script is located at and using command:
@@ -137,3 +144,10 @@ python twitch-recorder.py
 ```
 
 The optional parameters should work exactly the same as on Linux.
+
+## Credits
+
+- @junian
+- @Ancalentari
+- @AntonioMIN
+- @jim60105
