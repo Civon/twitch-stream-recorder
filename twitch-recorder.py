@@ -163,7 +163,6 @@ class TwitchRecorder:
                     streamlink_args.extend(["--twitch-api-header", "Authorization=OAuth " + self.twitch_oauth_token])
                 streamlink_args.extend(["--config", pwd + "/.streamlinkrc"])
                 streamlink_args.extend(["twitch.tv/" + self.username, self.quality, "-o", recorded_filename])
-                logging.info("streamlink args: %s", streamlink_args)
                 subprocess.call(streamlink_args)
 
                 logging.info("recording stream is done, processing video file")
