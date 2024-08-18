@@ -1,0 +1,5 @@
+root_path = "~/Videos/twitch"
+username = ""
+client_id = ""
+client_secret = ""
+twitch_oauth_token = "" # Optional
