@@ -75,10 +75,12 @@ fabric.properties
 #Pycharm
 .idea
 venv
-config.py
 
 *.log
 processed/
 recorded/
 
 .DS_store
+
+.env*
+!.env.sample

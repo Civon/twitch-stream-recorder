@@ -110,6 +110,12 @@ kill %1
 
 ### On Docker
 
+#### Docker Compose (recommand)
+
+Simply copy .env.example to .env file and run `Docker compose up`
+
+#### Single container
+
 Note: single container is not out-of-box, need to access config.py to modify client_id and client_secret.
 
 Replace cmd `python3.8 twitch-recorder.py` with

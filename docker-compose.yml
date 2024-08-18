@@ -1,0 +1,10 @@
+# forked from https://github.dev/jim60105/docker-twitch-recorder
+
+services:
+  record:
+    image: ghcr.io/civon/twitch-stream-recorder
+    restart: always
+    env_file:
+      - .env
+    volumes:
+      - ${archive}:/app/rec
