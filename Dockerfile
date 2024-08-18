@@ -1,17 +1,20 @@
-# Dockerfile for Ancalentari Twitch Stream Recorder
-
-# Use an official Python image as the base
-FROM python:3.10
+FROM python:3.10-slim
 
 # Set the working directory
 WORKDIR /app
 
-# Install required packages
-RUN pip install streamlink requests ffmpeg
+# Install system dependencies and Python packages
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+    ffmpeg \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/* \
+    && pip install --no-cache-dir streamlink requests
 
-# Copy the script and config file into the container
+# Copy the script and config files into the container
 COPY twitch-recorder.py .streamlinkrc config.py /app/
 
+# Set environment variables (can be overridden at runtime)
 ENV username=
 ENV client_id=
 ENV client_secret=
