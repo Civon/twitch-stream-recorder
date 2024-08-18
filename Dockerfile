@@ -10,7 +10,8 @@ WORKDIR /app
 RUN pip install streamlink requests ffmpeg
 
 # Copy the script and config file into the container
-COPY twitch-recorder.py config.py .streamlinkrc /app/
+COPY twitch-recorder.py .streamlinkrc /app/
+COPY config.py.example /app/config.py
 
 ENV username=
 ENV client_id=

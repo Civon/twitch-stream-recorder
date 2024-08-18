@@ -1,4 +1,5 @@
-root_path = "~/Videos/twitch"
+import os
+root_path = "/app/rec"
 username = ""
 client_id = ""
 client_secret = ""
