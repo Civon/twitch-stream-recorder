@@ -42,11 +42,7 @@ class TwitchRecorder:
         self.access_token = self.fetch_access_token()
 
         # twitch Oauth token
-        # Check if the user has provided a token in the config file
-        if hasattr(config,'twitch_oauth_token'):
-            self.twitch_oauth_token = config.twitch_oauth_token
-        else:
-            self.twitch_oauth_token = None
+        self.twitch_oauth_token = getattr(config, 'twitch_oauth_token', None)
 
     def fetch_access_token(self):
         token_response = requests.post(self.token_url, timeout=15)
@@ -183,7 +179,7 @@ def main(argv):
     logging.getLogger().addHandler(logging.StreamHandler())
 
     try:
-        opts, args = getopt.getopt(argv, "hu:q:l:", ["username=", "quality=", "log=", "logging=", "disable-ffmpeg"])
+        opts, args = getopt.getopt(argv, "hu:q:l:", ["username=", "quality=", "logging=", "disable-ffmpeg"])
     except getopt.GetoptError:
         print(usage_message)
         sys.exit(2)
