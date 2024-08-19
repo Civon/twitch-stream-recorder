@@ -1,0 +1,6 @@
+apiVersion: v2
+name: twitch-stream-recorder 
+description: A Helm chart for Kubernetes deployment of a Twitch recorder
+version: 0.1.0
+type: application
+appVersion: "1.16.0"

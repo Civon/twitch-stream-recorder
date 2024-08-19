@@ -1,0 +1,48 @@
+replicaCount: 1
+
+image:
+  repository: ghcr.io/civon/twitch-stream-recorder
+  # tag: latest
+  tag: 2.2
+  pullPolicy: IfNotPresent
+
+namespace:
+  name: twitch-stream-recorder
+
+channels:
+  - name: 
+    quality: worst
+    
+service:
+  type: ClusterIP
+  port: 80
+
+configmap:
+  quality: "480p"
+
+resources:
+  limits:
+    cpu: "100m"
+    memory: "512Mi"
+  requests:
+    cpu: "14m"
+    memory: "3Mi"
+
+# Additional volumes on the output Deployment definition.
+volumes: []
+# - name: foo
+#   secret:
+#     secretName: mysecret
+#     optional: false
+
+# Additional volumeMounts on the output Deployment definition.
+volumeMounts: []
+# - name: foo
+#   mountPath: "/etc/foo"
+#   readOnly: true
+
+nodeSelector: {}
+
+tolerations: []
+
+affinity: {}

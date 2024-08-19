@@ -1,0 +1,31 @@
+{{- range .Values.channels }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: twitch-rec-{{ include "twitch-stream-recorder.sanitizeName" .name }}
+  namespace: {{ $.Values.namespace.name }}
+  labels:
+    app: twitch-rec-{{ include "twitch-stream-recorder.sanitizeName" .name }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: twitch-rec-{{ include "twitch-stream-recorder.sanitizeName" .name }}
+  template:
+    metadata:
+      labels:
+        app: twitch-rec-{{ include "twitch-stream-recorder.sanitizeName" .name }}
+    spec:
+      containers:
+      - name: twitch-recorder
+        image: "{{ $.Values.image.repository }}:{{ $.Values.image.tag }}"
+        args: ["-u", "{{ .name }}", "-q", "{{ .quality }}"]
+        resources:
+          requests:
+            cpu: "{{ $.Values.resources.requests.cpu }}"
+            memory: "{{ $.Values.resources.requests.memory }}"
+          limits:
+            cpu: "{{ $.Values.resources.limits.cpu }}"
+            memory: "{{ $.Values.resources.limits.memory }}"
+---
+{{- end }}

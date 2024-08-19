@@ -8,6 +8,13 @@ This script allows you to record twitch streams live to .mp4 files.
 - `client_secret` - you generate this [here](https://dev.twitch.tv/console/apps) as well, for your registered application
 - (Optional)`twitch_oauth_token` - personal OAuth token from Twitch. Check [this section](#how-to-get-twitch-oauth-token) for details.
 
+## Bulk run using helm
+
+```
+# helm repo TBD
+helm install twitch-stream-recorder ./helm --namespace twitch-stream-recorder-namespace
+```
+
 ## Run on Docker
 
 ### Docker Compose
@@ -16,13 +23,13 @@ This script allows you to record twitch streams live to .mp4 files.
 1. Simply copy .env.example to .env file
 1. run `Docker compose up`
 
-#### Single container
+#### Single container(recommend)
 
 Create .env file from .env.example and run
 
 ```
 podman run --name twitch-stream-recorder \
-    -v your-vod-warehouse:/app/rec:Z \
+    -v <your-vod-warehouse>:/app/rec:Z \
     --env-file .env
     ghcr.io/civon/twitch-stream-recorder \
     --username myFavStreamer # You can override env by args \
