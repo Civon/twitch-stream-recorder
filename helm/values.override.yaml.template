@@ -1,0 +1,28 @@
+namespace:
+  name: twitch-stream-recorder
+
+image:
+  repository: ghcr.io/civon/twitch-stream-recorder
+  tag: "2.4"
+  pullPolicy: IfNotPresent
+
+channels:
+  - name: kana
+    quality: worst
+  - name: valorant_tw
+    quality: 720p60
+
+secrets:
+  name: twitch-stream-recorder-secrets
+  client_id: "${TWITCH_CLIENT_ID}"
+  client_secret: "${TWITCH_CLIENT_SECRET}"
+  twitch_oauth_token: "${TWITCH_OAUTH_TOKEN}"
+
+resources:
+  requests:
+    cpu: "50m"
+    memory: "64Mi"
+  limits:
+    cpu: "500m"
+    memory: "1Gi"
+

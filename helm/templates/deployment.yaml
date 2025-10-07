@@ -20,6 +20,24 @@ spec:
       - name: twitch-recorder
         image: "{{ $.Values.image.repository }}:{{ $.Values.image.tag }}"
         args: ["-u", "{{ .name }}", "-q", "{{ .quality }}"]
+        env:
+        - name: username
+          value: "{{ .name }}"
+        - name: client_id
+          valueFrom:
+            secretKeyRef:
+              name: {{ $.Values.secrets.name }}
+              key: client_id
+        - name: client_secret
+          valueFrom:
+            secretKeyRef:
+              name: {{ $.Values.secrets.name }}
+              key: client_secret
+        - name: twitch_oauth_token
+          valueFrom:
+            secretKeyRef:
+              name: {{ $.Values.secrets.name }}
+              key: twitch_oauth_token
         resources:
           requests:
             cpu: "{{ $.Values.resources.requests.cpu }}"
@@ -27,5 +45,12 @@ spec:
           limits:
             cpu: "{{ $.Values.resources.limits.cpu }}"
             memory: "{{ $.Values.resources.limits.memory }}"
+        volumeMounts:
+        - name: video-storage
+          mountPath: /app/rec
+      volumes:
+      - name: video-storage
+        persistentVolumeClaim:
+          claimName: twitch-rec-storage-{{ include "twitch-stream-recorder.sanitizeName" .name }}
 ---
 {{- end }}

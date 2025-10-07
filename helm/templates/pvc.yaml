@@ -1,0 +1,20 @@
+{{- range .Values.channels }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: twitch-rec-storage-{{ include "twitch-stream-recorder.sanitizeName" .name }}
+  namespace: {{ $.Values.namespace.name }}
+  labels:
+    app: twitch-rec-{{ include "twitch-stream-recorder.sanitizeName" .name }}
+spec:
+  accessModes:
+    - ReadWriteOnce
+  {{- if $.Values.storage.storageClassName }}
+  storageClassName: {{ $.Values.storage.storageClassName }}
+  {{- end }}
+  resources:
+    requests:
+      storage: {{ $.Values.storage.size }}
+---
+{{- end }}
+

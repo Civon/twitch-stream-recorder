@@ -11,8 +11,17 @@ This script allows you to record twitch streams live to .mp4 files.
 ## Bulk run using helm
 
 ```
-# helm repo TBD
+# helm install
 helm install twitch-stream-recorder ./helm --namespace twitch-stream-recorder-namespace
+```
+
+add list of channels to ./helm/values.override.yaml and upgrade
+
+```bash
+helm upgrade --install twitch-stream-recorder ./helm \
+  --namespace twitch-stream-recorder \
+  --values ./helm/values.yaml \
+  --values ./helm/values.override.yaml
 ```
 
 ## Run on Docker
@@ -28,9 +37,9 @@ helm install twitch-stream-recorder ./helm --namespace twitch-stream-recorder-na
 Create .env file from .env.example and run
 
 ```
-podman run --name twitch-stream-recorder \
+docker run --name twitch-stream-recorder \
     -v <your-vod-warehouse>:/app/rec:Z \
-    --env-file .env
+    --env-file .env \
     ghcr.io/civon/twitch-stream-recorder \
     --username myFavStreamer # You can override env by args \
     -q worst \
