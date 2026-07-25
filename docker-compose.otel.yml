@@ -1,0 +1,98 @@
+# Full observability stack for local development:
+#   docker compose -f docker-compose.otel.yml up --build
+#
+# Recorder -> OTel Collector -> Jaeger (traces) / Prometheus (metrics) / Loki (logs)
+# Grafana reads all three and ships with a pre-provisioned recorder dashboard.
+
+services:
+  twitch-stream-recorder:
+    build: .
+    image: ghcr.io/civon/twitch-stream-recorder
+    restart: always
+    env_file:
+      - .env
+    environment:
+      OTEL_SERVICE_NAME: twitch-stream-recorder
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
+      OTEL_EXPORTER_OTLP_PROTOCOL: grpc
+      OTEL_RESOURCE_ATTRIBUTES: deployment.environment=local,service.namespace=twitch
+      OTEL_METRIC_EXPORT_INTERVAL: 15000
+      OTEL_ENABLED: "true"
+    volumes:
+      - ${archive}:/app/rec
+    depends_on:
+      - otel-collector
+
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.109.0
+    restart: unless-stopped
+    command: ["--config=/etc/otelcol-contrib/config.yaml"]
+    environment:
+      DEPLOYMENT_ENVIRONMENT: local
+    volumes:
+      - ./observability/otel-collector-config.yaml:/etc/otelcol-contrib/config.yaml:ro
+    ports:
+      - "4317:4317"   # OTLP gRPC
+      - "4318:4318"   # OTLP HTTP
+      - "8889:8889"   # Prometheus scrape endpoint
+      - "13133:13133" # health_check extension
+    depends_on:
+      - jaeger
+      - loki
+
+  jaeger:
+    image: jaegertracing/all-in-one:1.60
+    restart: unless-stopped
+    environment:
+      COLLECTOR_OTLP_ENABLED: "true"
+    ports:
+      - "16686:16686" # Jaeger UI
+
+  prometheus:
+    image: prom/prometheus:v2.54.1
+    restart: unless-stopped
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --storage.tsdb.retention.time=15d
+      - --web.enable-lifecycle
+    volumes:
+      - ./observability/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    ports:
+      - "9090:9090"
+
+  loki:
+    image: grafana/loki:3.1.1
+    restart: unless-stopped
+    command: ["-config.file=/etc/loki/loki-config.yaml"]
+    volumes:
+      - ./observability/loki-config.yaml:/etc/loki/loki-config.yaml:ro
+      - loki-data:/loki
+    ports:
+      - "3100:3100"
+
+  grafana:
+    image: grafana/grafana:11.2.0
+    restart: unless-stopped
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Viewer
+      GF_FEATURE_TOGGLES_ENABLE: traceToLogs
+    volumes:
+      - ./observability/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./observability/grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - grafana-data:/var/lib/grafana
+    ports:
+      - "3000:3000"
+    depends_on:
+      - prometheus
+      - loki
+      - jaeger
+
+volumes:
+  prometheus-data:
+  loki-data:
+  grafana-data:

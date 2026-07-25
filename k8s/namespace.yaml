@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: twitch-recorder
+  labels:
+    app.kubernetes.io/name: twitch-stream-recorder
+    app.kubernetes.io/part-of: twitch-stream-recorder

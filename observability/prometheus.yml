@@ -1,0 +1,20 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    monitor: twitch-stream-recorder
+
+scrape_configs:
+  - job_name: otel-collector
+    static_configs:
+      - targets: ["otel-collector:8889"]
+        labels:
+          source: recorder-telemetry
+
+  - job_name: otel-collector-internal
+    static_configs:
+      - targets: ["otel-collector:8888"]
+
+  - job_name: prometheus
+    static_configs:
+      - targets: ["localhost:9090"]

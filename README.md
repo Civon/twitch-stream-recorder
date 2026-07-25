@@ -46,6 +46,133 @@ docker run --name twitch-stream-recorder \
     --log warn
 ```
 
+## Observability (OpenTelemetry)
+
+The recorder is instrumented with the OpenTelemetry SDK for traces, metrics and
+logs. Instrumentation is **entirely optional**: with no `OTEL_EXPORTER_OTLP_ENDPOINT`
+set the SDK is never started and every telemetry call becomes a no-op, so the
+recorder behaves exactly as it did before.
+
+### Architecture
+
+```mermaid
+flowchart LR
+    R["twitch-recorder<br/>(OTel SDK)"] -- "OTLP gRPC :4317<br/>OTLP HTTP :4318" --> C["OTel Collector<br/>memory_limiter → resource → batch"]
+    C -- traces --> J["Jaeger :16686"]
+    C -- "metrics (scraped :8889)" --> P["Prometheus :9090"]
+    C -- logs --> L["Loki :3100"]
+    J --> G["Grafana :3000"]
+    P --> G
+    L --> G
+```
+
+### What is instrumented
+
+**Traces** — `twitch.oauth.token` (token fetch), `twitch.api.get_streams`
+(stream status polling), `twitch.stream.record` (one full recording session,
+parent of the wide events below) and `recording.process` (ffmpeg remux / move).
+Outbound HTTP is additionally auto-instrumented through
+`opentelemetry-instrumentation-requests`.
+
+**Metrics**
+
+| Metric | Type | Description |
+| --- | --- | --- |
+| `twitch.recorder.active_recordings` | UpDownCounter | Recordings currently in progress |
+| `twitch.recorder.stream.uptime` | Observable gauge | Seconds since the in-flight recording started |
+| `twitch.recorder.recording.duration` | Histogram | Duration of a finished recording |
+| `twitch.recorder.processing.duration` | Histogram | ffmpeg post-processing duration |
+| `twitch.recorder.bytes_written` | Counter | Bytes written to disk |
+| `twitch.recorder.api.requests` | Counter | Twitch API calls by endpoint and status code |
+| `twitch.recorder.errors` | Counter | Errors by `error.type` |
+
+Process and runtime metrics come from `opentelemetry-instrumentation-system-metrics`.
+
+**Logs** — the root logger gets an OTLP handler, so every existing `logging`
+call is exported with the active trace and span IDs attached.
+
+### Wide events
+
+Each notable operation produces a single densely-attributed record rather than
+several thin log lines. Wide events are emitted twice: as a span event on the
+active span (visible inline in Jaeger) and as a structured log record (queryable
+in Loki). Emitted events: `stream_start`, `stream_end`, `recording_complete`,
+`recording_failed`, `disk_space_warning`, `api_rate_limit`, `reconnection_attempt`.
+
+A `recording_complete` event carries, for example:
+
+```
+event.name, event.domain, event.timestamp, service.name, host.name,
+twitch.streamer_name, twitch.stream_id, twitch.user_id, twitch.quality,
+twitch.stream.title, twitch.stream.game_name, twitch.stream.language,
+twitch.stream.viewer_count, twitch.stream.started_at,
+file.path, file.name, file.size, recorder.processed_path,
+recorder.duration_seconds, recorder.streamlink_exit_code,
+media.duration_seconds, media.bitrate_bps, media.video_codec,
+media.audio_codec, media.width, media.height, media.frame_rate
+```
+
+Adding a field means passing one more keyword argument to
+`WideEventEmitter.emit()` in `wide_events.py` — attributes travel as a flat map,
+so no consumer needs to change.
+
+### Configuration
+
+Everything is environment driven and follows the OpenTelemetry specification.
+
+| Variable | Default | Purpose |
+| --- | --- | --- |
+| `OTEL_EXPORTER_OTLP_ENDPOINT` | _(empty)_ | Collector endpoint. Empty disables telemetry. |
+| `OTEL_ENABLED` | auto | Force telemetry on/off regardless of the endpoint. |
+| `OTEL_EXPORTER_OTLP_PROTOCOL` | `grpc` | `grpc` or `http/protobuf`. |
+| `OTEL_SERVICE_NAME` | `twitch-stream-recorder` | `service.name` resource attribute. |
+| `OTEL_RESOURCE_ATTRIBUTES` | _(empty)_ | Extra resource attributes, e.g. `deployment.environment=prod`. |
+| `OTEL_METRIC_EXPORT_INTERVAL` | `15000` | Metric export interval in milliseconds. |
+| `OTEL_LOGS_ENABLED` | `true` | Export logs over OTLP. |
+| `DISK_FREE_WARNING_RATIO` | `0.10` | Free-space share that triggers `disk_space_warning`. |
+
+### Run the stack with Docker
+
+```bash
+cp .env.sample .env      # fill in username / client_id / client_secret / archive
+docker compose -f docker-compose.otel.yml config    # validate
+docker compose -f docker-compose.otel.yml up --build
+```
+
+| UI | URL |
+| --- | --- |
+| Grafana (dashboard "Twitch Stream Recorder") | http://localhost:3000 (admin/admin) |
+| Jaeger | http://localhost:16686 |
+| Prometheus | http://localhost:9090 |
+| Loki API | http://localhost:3100 |
+| Collector health check | http://localhost:13133 |
+
+### Deploy to Kubernetes
+
+```bash
+kubectl apply -f k8s/namespace.yaml
+kubectl create secret generic twitch-recorder-credentials \
+  --namespace twitch-recorder \
+  --from-literal=client_id=... \
+  --from-literal=client_secret=... \
+  --from-literal=twitch_oauth_token=
+kubectl apply -k k8s/
+```
+
+`k8s/kustomization.yaml` generates the Grafana dashboard ConfigMap from
+`observability/grafana/dashboards/twitch-recorder.json`, so the dashboard is
+defined once and shared by both deployment paths. Recorder settings live in the
+`twitch-recorder-config` ConfigMap and credentials in the
+`twitch-recorder-credentials` Secret (see `k8s/secret.example.yaml`).
+
+Port-forward the UIs:
+
+```bash
+kubectl -n twitch-recorder port-forward svc/grafana 3000:3000
+kubectl -n twitch-recorder port-forward svc/jaeger 16686:16686
+kubectl -n twitch-recorder port-forward svc/prometheus 9090:9090
+```
+
 ## Requirements
 
 1. [python3.8](https://www.python.org/downloads/release/python-380/) or higher
@@ -60,9 +187,9 @@ docker run --name twitch-stream-recorder \
    - `streamlink --version-check` shows available upgrade
    - `sudo pip install --upgrade streamlink` do upgrade
 
-2. Install `requests` module [if you don't have it](https://pypi.org/project/requests/)
-   - Windows: `python -m pip install requests`
-   - Linux: `python3.8 -m pip install requests`
+2. Install the Python dependencies: `pip install -r requirements.txt`
+   (this covers `requests` plus the optional OpenTelemetry packages; the
+   recorder also runs with only `requests` installed)
 3. Create `config.py` file in the same directory as `twitch-recorder.py` with:
 
 ```properties
