@@ -164,21 +164,28 @@ class TwitchRecorder:
 
 
 def main(argv):
-    twitch_recorder = TwitchRecorder()
     usage_message = "twitch-recorder.py -u <username> -q <quality>"
-    logging.basicConfig(filename="twitch-recorder.log", level=logging.INFO)
-    logging.getLogger().addHandler(logging.StreamHandler())
 
     try:
-        opts, args = getopt.getopt(argv, "hu:q:l:", ["username=", "quality=", "log=", "logging=", "disable-ffmpeg"])
+        opts, args = getopt.getopt(
+            argv,
+            "hu:q:l:",
+            ["help", "username=", "quality=", "log=", "logging=", "disable-ffmpeg"],
+        )
     except getopt.GetoptError:
         print(usage_message)
         sys.exit(2)
-    for opt, arg in opts:
-        if opt == "-h":
+
+    for opt, _ in opts:
+        if opt in ("-h", "--help"):
             print(usage_message)
-            sys.exit()
-        elif opt in ("-u", "--username"):
+            sys.exit(0)
+
+    logging.basicConfig(filename="twitch-recorder.log", level=logging.INFO)
+    logging.getLogger().addHandler(logging.StreamHandler())
+    twitch_recorder = TwitchRecorder()
+    for opt, arg in opts:
+        if opt in ("-u", "--username"):
             twitch_recorder.username = arg
         elif opt in ("-q", "--quality"):
             twitch_recorder.quality = arg
