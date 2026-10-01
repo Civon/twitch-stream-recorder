@@ -72,3 +72,26 @@ You can run the scipt from `cmd` or [terminal](https://www.microsoft.com/en-us/p
 python twitch-recorder.py
 ```
 The optional parameters should work exactly the same as on Linux.
+
+### With Docker
+Build the image, which uses Python 3.14 and includes Streamlink and FFmpeg:
+```shell
+docker build -t twitch-stream-recorder .
+```
+
+The recorder still reads its settings from `config.py`. Mount that file and the
+recording directory when starting the container:
+```shell
+docker run --rm \
+  -v "$PWD/config.py:/app/config.py:ro" \
+  -v "/path/to/videos:/recordings" \
+  twitch-stream-recorder
+```
+
+Set `root_path = "/recordings"` in the mounted configuration so recordings are
+written to the host volume.
+
+Run the container smoke test after changing the image:
+```shell
+./tests/smoke-container.sh
+```
