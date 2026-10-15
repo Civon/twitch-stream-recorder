@@ -19,13 +19,17 @@ WORKDIR /app
 COPY --from=builder /usr/local /usr/local
 
 COPY twitch-recorder.py .streamlinkrc config.py /app/
+COPY recorder /app/recorder
 
 RUN apk add --no-cache ffmpeg
 
 # Set environment variables
+ENV PYTHONUNBUFFERED=1
 ENV username=
 ENV client_id=
 ENV client_secret=
 ENV twitch_oauth_token=
 
+# Legacy per-channel loop. The controller runs `python -m recorder.controller`
+# and recording Jobs run `python -m recorder.cli record` from this same image.
 ENTRYPOINT ["python", "twitch-recorder.py"]

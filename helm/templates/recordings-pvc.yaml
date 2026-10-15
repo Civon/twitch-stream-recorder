@@ -1,0 +1,19 @@
+{{- if and .Values.operator.enabled (not .Values.storage.existingClaim) }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: twitch-rec-storage
+  namespace: {{ .Values.namespace.name }}
+  annotations:
+    # Recordings outlive `helm uninstall`.
+    helm.sh/resource-policy: keep
+spec:
+  accessModes:
+    - {{ .Values.storage.sharedAccessMode }}
+  {{- if .Values.storage.storageClassName }}
+  storageClassName: {{ .Values.storage.storageClassName }}
+  {{- end }}
+  resources:
+    requests:
+      storage: {{ .Values.storage.sharedSize }}
+{{- end }}

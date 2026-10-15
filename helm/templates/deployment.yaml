@@ -1,3 +1,4 @@
+{{- if not .Values.operator.enabled }}
 {{- range .Values.channels }}
 apiVersion: apps/v1
 kind: Deployment
@@ -26,17 +27,17 @@ spec:
         - name: client_id
           valueFrom:
             secretKeyRef:
-              name: {{ $.Values.secrets.name }}
+              name: {{ include "twitch-stream-recorder.secretName" $ }}
               key: client_id
         - name: client_secret
           valueFrom:
             secretKeyRef:
-              name: {{ $.Values.secrets.name }}
+              name: {{ include "twitch-stream-recorder.secretName" $ }}
               key: client_secret
         - name: twitch_oauth_token
           valueFrom:
             secretKeyRef:
-              name: {{ $.Values.secrets.name }}
+              name: {{ include "twitch-stream-recorder.secretName" $ }}
               key: twitch_oauth_token
         resources:
           requests:
@@ -53,4 +54,5 @@ spec:
         persistentVolumeClaim:
           claimName: twitch-rec-storage-{{ include "twitch-stream-recorder.sanitizeName" .name }}
 ---
+{{- end }}
 {{- end }}

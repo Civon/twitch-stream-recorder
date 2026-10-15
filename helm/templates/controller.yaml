@@ -1,0 +1,128 @@
+{{- if .Values.operator.enabled }}
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: twitch-recorder-controller
+  namespace: {{ .Values.namespace.name }}
+  labels:
+    app.kubernetes.io/name: twitch-recorder-controller
+    app.kubernetes.io/instance: {{ .Release.Name }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: twitch-recorder-controller
+  namespace: {{ .Values.namespace.name }}
+rules:
+  - apiGroups: ["recorder.civon.github.io"]
+    resources: ["twitchchannels"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["recorder.civon.github.io"]
+    resources: ["twitchchannels/status"]
+    verbs: ["get", "patch", "update"]
+  - apiGroups: ["batch"]
+    resources: ["jobs"]
+    verbs: ["get", "list", "watch", "create"]
+  - apiGroups: [""]
+    resources: ["events"]
+    verbs: ["create", "patch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: twitch-recorder-controller
+  namespace: {{ .Values.namespace.name }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: twitch-recorder-controller
+subjects:
+  - kind: ServiceAccount
+    name: twitch-recorder-controller
+    namespace: {{ .Values.namespace.name }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: twitch-recorder-job-template
+  namespace: {{ .Values.namespace.name }}
+data:
+  job-template.json: {{ include "twitch-stream-recorder.jobTemplate" . | fromYaml | toJson | quote }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: twitch-recorder-controller
+  namespace: {{ .Values.namespace.name }}
+  labels:
+    app.kubernetes.io/name: twitch-recorder-controller
+    app.kubernetes.io/instance: {{ .Release.Name }}
+spec:
+  # One controller is enough; Job names are per broadcast, so a brief overlap
+  # during a rollout cannot start the same recording twice.
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: twitch-recorder-controller
+      app.kubernetes.io/instance: {{ .Release.Name }}
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: twitch-recorder-controller
+        app.kubernetes.io/instance: {{ .Release.Name }}
+      annotations:
+        checksum/job-template: {{ include "twitch-stream-recorder.jobTemplate" . | sha256sum }}
+    spec:
+      serviceAccountName: twitch-recorder-controller
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65534
+        runAsGroup: 65534
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: controller
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command: ["python", "-m", "recorder.controller"]
+          env:
+            {{- include "twitch-stream-recorder.twitchEnv" . | nindent 12 }}
+            {{- include "twitch-stream-recorder.podEnv" . | nindent 12 }}
+            - name: JOB_TEMPLATE_PATH
+              value: /etc/twitch-recorder/job-template.json
+            - name: MAX_CONCURRENT_RECORDINGS
+              value: {{ .Values.operator.maxConcurrentRecordings | quote }}
+            - name: POLL_INTERVAL
+              value: {{ .Values.operator.pollInterval | quote }}
+            - name: HEARTBEAT_PATH
+              value: /tmp/heartbeat
+          livenessProbe:
+            exec:
+              command:
+                - sh
+                - -c
+                - test $(( $(date +%s) - $(stat -c %Y /tmp/heartbeat) )) -lt {{ add (mul (max 15 (int .Values.operator.pollInterval)) 3) 120 }}
+            initialDelaySeconds: 60
+            periodSeconds: 60
+          resources:
+            {{- toYaml .Values.operator.resources | nindent 12 }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            - name: job-template
+              mountPath: /etc/twitch-recorder
+              readOnly: true
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: job-template
+          configMap:
+            name: twitch-recorder-job-template
+        - name: tmp
+          emptyDir: {}
+{{- end }}

@@ -1,0 +1,110 @@
+# Helm installs this before the templates on first install but never upgrades it.
+# After changing it, apply it yourself:
+#   kubectl apply -f helm/crds/
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: twitchchannels.recorder.civon.github.io
+spec:
+  group: recorder.civon.github.io
+  scope: Namespaced
+  names:
+    plural: twitchchannels
+    singular: twitchchannel
+    kind: TwitchChannel
+    shortNames: [tch]
+    categories: [twitch]
+  versions:
+    - name: v1alpha1
+      served: true
+      storage: true
+      subresources:
+        status: {}
+      additionalPrinterColumns:
+        - name: Login
+          type: string
+          jsonPath: .spec.login
+        - name: Phase
+          type: string
+          jsonPath: .status.phase
+        - name: Category
+          type: string
+          jsonPath: .status.categoryName
+        - name: Job
+          type: string
+          jsonPath: .status.activeJob
+          priority: 1
+        - name: Title
+          type: string
+          jsonPath: .status.title
+          priority: 1
+        - name: Age
+          type: date
+          jsonPath: .metadata.creationTimestamp
+      schema:
+        openAPIV3Schema:
+          type: object
+          description: A Twitch channel to record whenever it is live.
+          properties:
+            spec:
+              type: object
+              required: [login]
+              properties:
+                login:
+                  type: string
+                  description: Twitch login (the name in twitch.tv/<login>).
+                  pattern: '^[a-zA-Z0-9_]{1,25}$'
+                quality:
+                  type: string
+                  description: streamlink quality, e.g. best, 720p60, worst, audio_only.
+                  default: best
+                priority:
+                  type: integer
+                  description: Higher values get a free recording slot first when the concurrency cap is reached.
+                  default: 0
+                paused:
+                  type: boolean
+                  description: Keep the resource but do not start new recordings.
+                  default: false
+                container:
+                  type: string
+                  description: Final file format. mkv embeds chapters at each category change.
+                  enum: [mkv, mp4]
+                  default: mkv
+                bandwidth:
+                  type: string
+                  description: Download rate cap for the recording pod (kubernetes.io/ingress-bandwidth), e.g. 8M.
+                  pattern: '^[0-9]+[KMG]?$'
+            status:
+              type: object
+              properties:
+                phase:
+                  type: string
+                  enum: [Offline, Live, Recording, Deferred, Paused, Failed]
+                live:
+                  type: boolean
+                streamId:
+                  type: string
+                categoryId:
+                  type: string
+                categoryName:
+                  type: string
+                title:
+                  type: string
+                tags:
+                  type: array
+                  items:
+                    type: string
+                language:
+                  type: string
+                isMature:
+                  type: boolean
+                startedAt:
+                  type: string
+                activeJob:
+                  type: string
+                lastMetadataChangeAt:
+                  type: string
+                observedGeneration:
+                  type: integer
+                  format: int64

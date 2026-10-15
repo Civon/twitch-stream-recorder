@@ -24,6 +24,60 @@ helm upgrade --install twitch-stream-recorder ./helm \
   --values ./helm/values.override.yaml
 ```
 
+### Operator mode (one Job per live broadcast)
+
+Set `operator.enabled: true` (needs an image built from this version or later). The
+chart then installs the `TwitchChannel` CRD and a small controller instead of one
+Deployment per channel. The same `channels:` list becomes `TwitchChannel` resources;
+the controller checks all of them with one Twitch API call per 100 channels and
+starts a recording Job for each live broadcast.
+
+```bash
+kubectl -n twitch-stream-recorder get twitchchannels
+# NAME          LOGIN         PHASE       CATEGORY   AGE
+# kana          kana          Recording   Music      2d
+# valorant-tw   valorant_tw   Deferred    VALORANT   2d
+
+kubectl -n twitch-stream-recorder describe twitchchannel kana
+# Events:  MetadataChanged  category Music -> VALORANT; title 'Ranked'
+```
+
+Useful values: `operator.maxConcurrentRecordings` (cap on parallel recordings, higher
+`priority` channels go first), per-channel `bandwidth` (download cap through the CNI
+bandwidth plugin), `storage.existingClaim` (a ReadWriteMany claim shared by all Jobs)
+and `secrets.existingSecret`. Helm does not upgrade CRDs; after a chart upgrade run
+`kubectl apply -f helm/crds/`.
+
+## Stream metadata events
+
+While recording, the recorder checks the stream's category, title, tags, language and
+mature flag every `--metadata-interval` seconds (default 30). A change, such as a
+singing stream (`Music`) switching to a game, is written as a wide event: one flat
+JSON object with the full context and the position in the file where it happened.
+
+```json
+{"ts":"2026-10-15T09:12:03.120Z","event":"stream.metadata_changed","schema":"twitch-recorder.event/v1",
+ "channel.login":"kana","stream.id":"40000000001","recording.id":"kana-40000000001-20261015T080005",
+ "recording.offset_ms":3723000,"change.fields":["category","title"],
+ "category.before.name":"Music","category.name":"VALORANT","stream.title":"Ranked","k8s.pod.name":"rec-kana-40000000001-x7k2p"}
+```
+
+| Event | When |
+|---|---|
+| `recording.started` | capture begins (full metadata snapshot) |
+| `stream.metadata_changed` | category, title, tags, language or mature flag changed |
+| `recording.session` | capture finalized: outcome, duration, bytes, categories visited, change counts |
+| `recording.skipped` / `recording.recovered` | Job started too late / leftover file finalized after a restart |
+| `recording.scheduled` / `recording.deferred` / `controller.reconciled` | controller decisions (operator mode) |
+
+Where they go (`EVENT_SINKS` or `--event-sinks`, comma separated):
+
+- `stdout` (default): JSON lines on stdout. In Kubernetes, Loki/Alloy/Vector already
+  collect these: `{namespace="twitch-stream-recorder"} | json | event="stream.metadata_changed"`.
+- `log`: the same fields as a logfmt line in the application log.
+- Always: a `<recording>.events.jsonl` file next to the video. MKV recordings also get
+  chapters at each category change, and a `<recording>.chapters.json` sidecar.
+
 ## Run on Docker
 
 ### Docker Compose

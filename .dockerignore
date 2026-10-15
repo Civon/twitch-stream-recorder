@@ -1,0 +1,11 @@
+.git
+.github
+.env*
+!.env.sample
+helm
+tests
+aidlc
+**/__pycache__
+*.log
+recorded
+processed

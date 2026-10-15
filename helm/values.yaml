@@ -28,6 +28,52 @@ channels: []
 # Example:
 # - name: streamer_name
 #   quality: best            # Options: best, 1080p, 720p, 480p, 360p, worst, audio_only
+#   # Operator mode only:
+#   priority: 10             # higher gets a free recording slot first
+#   container: mkv           # mkv (chapters at each category change) or mp4
+#   bandwidth: 8M            # download cap for this channel's recording pod
+#   paused: false
+
+# Recording mode.
+#   enabled: false  One long-running Deployment and PVC per channel (the original layout).
+#   enabled: true   A controller watches TwitchChannel resources (rendered from `channels`
+#                   above) and starts one Job per live broadcast. See
+#                   aidlc/spaces/default/intents/261015-k8s-native-recorder/ for the design.
+operator:
+  enabled: false
+  # Recordings allowed to run at once; 0 = no cap. Keeps the WAN link from saturating.
+  maxConcurrentRecordings: 0
+  # Seconds between Twitch live checks for all channels (one API call per 100 channels).
+  pollInterval: 30
+  resources:
+    requests:
+      cpu: "10m"
+      memory: "48Mi"
+    limits:
+      cpu: "200m"
+      memory: "128Mi"
+  job:
+    # Seconds between metadata polls while recording (category/title/tag changes).
+    metadataInterval: 30
+    backoffLimit: 3
+    # Upper bound for one recording, including finalize.
+    activeDeadlineSeconds: 172800
+    ttlSecondsAfterFinished: 86400
+    # Time to finish the remux after SIGTERM (node drain, Job deleted).
+    terminationGracePeriodSeconds: 300
+    # Node drains and preemption do not count against backoffLimit (Kubernetes >= 1.26).
+    ignoreDisruptions: true
+    priorityClassName: ""
+    nodeSelector: {}
+    tolerations: []
+    affinity: {}
+
+# Wide events (JSON lines) for metadata changes and recording sessions.
+#   stdout: one JSON object per line on stdout, picked up by Loki/Alloy/Vector
+#   log:    the same fields as one logfmt line in the application log
+#   none:   only the per-recording *.events.jsonl sidecar file
+events:
+  sinks: stdout
 
 # ConfigMap settings
 configmap:
@@ -36,6 +82,9 @@ configmap:
 # Twitch API secrets
 # Override these in values.override.yaml or values.secrets.yaml
 secrets:
+  # Use a Secret you manage (External Secrets, Vault, Infisical) instead of rendering one.
+  # It must have the keys client_id, client_secret and, optionally, twitch_oauth_token.
+  existingSecret: ""
   name: twitch-stream-recorder-secrets
   client_id: "CHANGE_ME"
   client_secret: "CHANGE_ME"
@@ -59,6 +108,13 @@ resources:
 storage:
   size: "50Gi"
   storageClassName: "local-path"
+  # Operator mode: recording Jobs for all channels share one claim, so it should be
+  # ReadWriteMany (e.g. CephFS) to let Jobs run on any node. With a ReadWriteOnce
+  # class such as local-path, set sharedAccessMode: ReadWriteOnce and pin Jobs to
+  # one node with operator.job.nodeSelector.
+  existingClaim: ""
+  sharedSize: "200Gi"
+  sharedAccessMode: ReadWriteMany
 
 # Export service for accessing/downloading videos via web
 export:

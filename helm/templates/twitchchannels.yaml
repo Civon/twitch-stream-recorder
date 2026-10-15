@@ -1,0 +1,25 @@
+{{- if .Values.operator.enabled }}
+{{- range .Values.channels }}
+---
+apiVersion: recorder.civon.github.io/v1alpha1
+kind: TwitchChannel
+metadata:
+  name: {{ include "twitch-stream-recorder.sanitizeName" .name | lower }}
+  namespace: {{ $.Values.namespace.name }}
+spec:
+  login: {{ .name | quote }}
+  quality: {{ .quality | default "best" | quote }}
+  {{- if hasKey . "priority" }}
+  priority: {{ .priority }}
+  {{- end }}
+  {{- if hasKey . "paused" }}
+  paused: {{ .paused }}
+  {{- end }}
+  {{- with .container }}
+  container: {{ . | quote }}
+  {{- end }}
+  {{- with .bandwidth }}
+  bandwidth: {{ . | quote }}
+  {{- end }}
+{{- end }}
+{{- end }}
