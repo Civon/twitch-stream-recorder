@@ -1,0 +1,59 @@
+name: Mirror to GitLab (backup)
+
+# Runs only in the private dev repo. Pushes every branch and tag to a private
+# GitLab project over SSH, using a deploy key scoped to that one project.
+#
+# Required secrets (dev repo -> Settings -> Secrets and variables -> Actions):
+#   GITLAB_MIRROR_SSH_KEY     private half of a GitLab *project deploy key* with write access
+#   GITLAB_KNOWN_HOSTS        output of `ssh-keyscan gitlab.com`, checked against GitLab's published fingerprints
+# Required variable:
+#   GITLAB_MIRROR_REPO        e.g. git@gitlab.com:civon/twitch-stream-recorder-dev.git
+
+on:
+  push:
+    branches: ['**']
+    tags: ['**']
+  delete:
+  workflow_dispatch:
+
+# The job only reads this repo. It cannot write to GitHub at all.
+permissions:
+  contents: read
+
+concurrency:
+  group: mirror-gitlab
+  cancel-in-progress: false
+
+jobs:
+  mirror:
+    if: github.repository == 'Civon/twitch-stream-recorder-dev'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      # Plain git instead of third-party actions, so no external code sees the deploy key.
+      - name: Clone all branches and tags
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          git -c http.extraheader="AUTHORIZATION: basic $(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)" \
+            clone --bare "https://github.com/${GITHUB_REPOSITORY}.git" repo.git
+
+      - name: Push to GitLab
+        env:
+          SSH_KEY: ${{ secrets.GITLAB_MIRROR_SSH_KEY }}
+          KNOWN_HOSTS: ${{ secrets.GITLAB_KNOWN_HOSTS }}
+          GITLAB_REPO: ${{ vars.GITLAB_MIRROR_REPO }}
+        run: |
+          set -euo pipefail
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/gitlab_mirror
+          printf '%s\n' "$KNOWN_HOSTS" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/gitlab_mirror ~/.ssh/known_hosts
+          export GIT_SSH_COMMAND="ssh -i ~/.ssh/gitlab_mirror -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes"
+          cd repo.git
+          # Only branches and tags; refs/pull/* and other GitHub-internal refs stay out.
+          git push --prune "$GITLAB_REPO" '+refs/heads/*:refs/heads/*' '+refs/tags/*:refs/tags/*'
+
+      - name: Remove key
+        if: always()
+        run: rm -f ~/.ssh/gitlab_mirror
